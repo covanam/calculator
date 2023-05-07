@@ -88,6 +88,80 @@ fn tokenize(s : String) -> Vec<Token> {
     tokens
 }
 
+/*
+grammar:
+    factor = number
+    factor = (expression)
+*/
+fn evaluate_factor<T>(tokens : &mut T) -> Result<f64, Token> where T: Iterator<Item = Token> {
+    if let Some(token) = tokens.next() {
+        match token {
+            Token::Number(value) => Ok(value),
+            Token::LeftBracket => {
+                let value = evaluate_expression(tokens)?;
+                if let Some(token) = tokens.next() {
+                    match token {
+                        Token::RightBracket => Ok(value),
+                        _ => Err(token)
+                    }
+                }
+                else {
+                    Err(Token::Invalid('z'))
+                }
+            }
+            other => Err(other)
+        }
+    }
+    else {
+        Err(Token::Invalid('z'))
+    }
+}
+
+/*
+grammar:
+    term = factor * term
+    term = factor / term
+*/
+fn evaluate_term<T>(tokens : &mut T) -> Result<f64, Token> where T: Iterator<Item = Token> {
+    let value = evaluate_factor(tokens)?;
+
+    if let Some(token) = tokens.next() {
+        match token {
+            Token::Mul => Ok(value * evaluate_expression(tokens)?),
+            Token::Div => Ok(value / evaluate_expression(tokens)?),
+            other => Err(other)
+        }
+    }
+    else {
+        Ok(value)
+    }
+}
+
+/*
+grammar:
+    expression = term + expression
+    expression = term - expression
+*/
+fn evaluate_expression<T>(tokens : &mut T) -> Result<f64, Token> where T: Iterator<Item = Token> {
+    let value = evaluate_term(tokens)?;
+
+    if let Some(token) = tokens.next() {
+        match token {
+            Token::Add => Ok(value + evaluate_expression(tokens)?),
+            Token::Sub => Ok(value - evaluate_expression(tokens)?),
+            other => Err(other)
+        }
+    }
+    else {
+        Ok(value)
+    }
+}
+
+fn evaluate<T>(tokens : T) -> Result<f64, Token> where T: Iterator<Item = Token> {
+    let mut tokens = tokens.into_iter();
+    Ok(evaluate_expression(&mut tokens)?)
+}
+
 fn main() {
     loop {
         let mut input = String::new();
@@ -99,10 +173,11 @@ fn main() {
 
         io::stdin().read_line(&mut input).expect("Something wrong");
 
-        let tokens = tokenize(input);
+        let tokens = tokenize(input).into_iter();
 
-        for t in tokens {
-            println!("{}", t);
+        match evaluate(tokens) {
+            Ok(value) => println!("{}", value),
+            Err(token) => println!("Unexpected token: {}", token)
         }
     }
 }
