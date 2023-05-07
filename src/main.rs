@@ -137,8 +137,8 @@ where T: Iterator<Item = Token>
         }
     ) {
         match token {
-            Token::Mul => Ok(value * evaluate_expression(tokens)?),
-            Token::Div => Ok(value / evaluate_expression(tokens)?),
+            Token::Mul => Ok(value * evaluate_term(tokens)?),
+            Token::Div => Ok(value / evaluate_term(tokens)?),
             other => Err(other)
         }
     }
