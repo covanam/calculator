@@ -121,57 +121,65 @@ where T: Iterator<Item = Token>
 
 /*
 grammar:
-    term = factor * term
-    term = factor / term
     term = factor
+    term' = * factor term'
+          | / factor term
+          | nothing
 */
 fn evaluate_term<T>(tokens : &mut iter::Peekable<T>) -> Option<f64>
 where T: Iterator<Item = Token>
 {
-    let value = evaluate_factor(tokens)?;
+    let mut value = evaluate_factor(tokens)?;
 
-    if let Some(token) = tokens.next_if(
-        |t| match t {
-            Token::Mul | Token::Div => true,
-            _ => false
+    loop {
+        if let Some(token) = tokens.peek() {
+            match token {
+                Token::Mul => {
+                    tokens.next()?;
+                    value *= evaluate_factor(tokens)?;
+                }
+                Token::Div => {
+                    tokens.next()?;
+                    value /= evaluate_factor(tokens)?;
+                }
+                _ => { return Some(value); }
+            }
         }
-    ) {
-        match token {
-            Token::Mul => Some(value * evaluate_term(tokens)?),
-            Token::Div => Some(value / evaluate_term(tokens)?),
-            other => None
+        else {
+            return Some(value);
         }
-    }
-    else {
-        Some(value)
     }
 }
 
 /*
 grammar:
-    expression = term + expression
-    expression = term - expression
-    expression = term
+    expression = term expression'
+    expression' = + term expression'
+                | - term expression'
+                | nothing
 */
 fn evaluate_expression<T>(tokens : &mut iter::Peekable<T>) -> Option<f64>
 where T: Iterator<Item = Token>
 {
-    let value = evaluate_term(tokens)?;
+    let mut value = evaluate_term(tokens)?;
 
-    if let Some(token) = tokens.next_if(
-        |t| match t {
-            Token::Add | Token::Sub => true,
-            _ => false
+    loop {
+        if let Some(token) = tokens.peek() {
+            match token {
+                Token::Add => {
+                    tokens.next()?;
+                    value += evaluate_term(tokens)?;
+                }
+                Token::Sub => {
+                    tokens.next()?;
+                    value -= evaluate_term(tokens)?;
+                }
+                _ => { return Some(value); }
+            }
         }
-    ) {
-        match token {
-            Token::Add => Some(value + evaluate_expression(tokens)?),
-            Token::Sub => Some(value - evaluate_expression(tokens)?),
-            other => None
+        else {
+            return Some(value);
         }
-    }
-    else {
-        Some(value)
     }
 }
 
