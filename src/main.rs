@@ -120,7 +120,7 @@ where T: Iterator<Item = Token>
                     None => None
                 }
             }
-            other => None
+            _ => None
         }
     }
     else {
