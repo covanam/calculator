@@ -93,29 +93,29 @@ grammar:
     factor = number
     factor = (expression)
 */
-fn evaluate_factor<T>(tokens : &mut iter::Peekable<T>) -> Result<f64, Token>
+fn evaluate_factor<T>(tokens : &mut iter::Peekable<T>) -> Option<f64>
 where T: Iterator<Item = Token>
 {
     if let Some(token) = tokens.next() {
         match token {
-            Token::Number(value) => Ok(value),
+            Token::Number(value) => Some(value),
             Token::LeftBracket => {
                 let value = evaluate_expression(tokens)?;
                 if let Some(token) = tokens.next() {
                     match token {
-                        Token::RightBracket => Ok(value),
-                        _ => Err(token)
+                        Token::RightBracket => Some(value),
+                        _ => None
                     }
                 }
                 else {
-                    Err(Token::Invalid('z'))
+                    None
                 }
             }
-            other => Err(other)
+            other => None
         }
     }
     else {
-        Err(Token::Invalid('z'))
+        None
     }
 }
 
@@ -125,7 +125,7 @@ grammar:
     term = factor / term
     term = factor
 */
-fn evaluate_term<T>(tokens : &mut iter::Peekable<T>) -> Result<f64, Token>
+fn evaluate_term<T>(tokens : &mut iter::Peekable<T>) -> Option<f64>
 where T: Iterator<Item = Token>
 {
     let value = evaluate_factor(tokens)?;
@@ -137,13 +137,13 @@ where T: Iterator<Item = Token>
         }
     ) {
         match token {
-            Token::Mul => Ok(value * evaluate_term(tokens)?),
-            Token::Div => Ok(value / evaluate_term(tokens)?),
-            other => Err(other)
+            Token::Mul => Some(value * evaluate_term(tokens)?),
+            Token::Div => Some(value / evaluate_term(tokens)?),
+            other => None
         }
     }
     else {
-        Ok(value)
+        Some(value)
     }
 }
 
@@ -153,7 +153,7 @@ grammar:
     expression = term - expression
     expression = term
 */
-fn evaluate_expression<T>(tokens : &mut iter::Peekable<T>) -> Result<f64, Token>
+fn evaluate_expression<T>(tokens : &mut iter::Peekable<T>) -> Option<f64>
 where T: Iterator<Item = Token>
 {
     let value = evaluate_term(tokens)?;
@@ -165,22 +165,22 @@ where T: Iterator<Item = Token>
         }
     ) {
         match token {
-            Token::Add => Ok(value + evaluate_expression(tokens)?),
-            Token::Sub => Ok(value - evaluate_expression(tokens)?),
-            other => Err(other)
+            Token::Add => Some(value + evaluate_expression(tokens)?),
+            Token::Sub => Some(value - evaluate_expression(tokens)?),
+            other => None
         }
     }
     else {
-        Ok(value)
+        Some(value)
     }
 }
 
-fn evaluate<T>(tokens : T) -> Result<f64, Token> where T: iter::Iterator<Item = Token> {
+fn evaluate<T>(tokens : T) -> Option<f64> where T: iter::Iterator<Item = Token> {
     let mut tokens = tokens.into_iter().peekable();
     let val = evaluate_expression(&mut tokens)?;
     match tokens.next() {
-        None => Ok(val),
-        Some(t) => Err(t)
+        None => Some(val),
+        Some(_) => None
     }
 }
 
@@ -198,8 +198,8 @@ fn main() {
         let tokens = tokenize(input).into_iter();
 
         match evaluate(tokens) {
-            Ok(value) => println!("{}", value),
-            Err(token) => println!("Unexpected token: {}", token)
+            Some(value) => println!("{}", value),
+            None => println!("Syntax error")
         }
     }
 }
