@@ -92,6 +92,8 @@ fn tokenize(s : String) -> Vec<Token> {
 grammar:
     factor = number
     factor = (expression)
+    factor = + factor
+    factor = - factor
 */
 fn evaluate_factor<T>(tokens : &mut iter::Peekable<T>) -> Option<f64>
 where T: Iterator<Item = Token>
@@ -109,6 +111,13 @@ where T: Iterator<Item = Token>
                 }
                 else {
                     None
+                }
+            }
+            Token::Add => evaluate_factor(tokens),
+            Token::Sub => {
+                match evaluate_factor(tokens) {
+                    Some(value) => Some(-value),
+                    None => None
                 }
             }
             other => None
