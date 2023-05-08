@@ -11,12 +11,8 @@ enum Token {
     Add,
     Sub,
     Mul,
-    Div
-}
-
-enum ParseError {
-    InvalidNumber(String),
-    InvalidCharacter(char)
+    Div,
+    Invalid(char)
 }
 
 impl fmt::Display for Token {
@@ -29,51 +25,40 @@ impl fmt::Display for Token {
             Token::Sub => write!(f, "-"),
             Token::Mul => write!(f, "*"),
             Token::Div => write!(f, "/"),
+            Token::Invalid(c) => write!(f, "Invalid({})", c),
         }
     }
 }
 
-fn get_first_number(iter : &mut iter::Peekable<str::Chars>)
--> Result<Option<f64>, ParseError>
-{
+fn get_first_number(iter : &mut iter::Peekable<str::Chars>) -> Option<f64> {
     let mut num = String::with_capacity(8);
    
     while let Some(c) = iter.next_if(|c| c.is_numeric() || *c == '.') {
         num.push(c);
     }
 
-    if num.len() == 0 {
-        Ok(None)
-    }
-    else if let Ok(value) = num.parse::<f64>() {
-        Ok(Some(value))
+    if let Ok(value) = num.parse::<f64>() {
+        Some(value)
     }
     else {
-        Err(ParseError::InvalidNumber(num))
+        None
     }
 }
 
-fn get_token(iter : &mut iter::Peekable<str::Chars>)
--> Result<Option<Token>, ParseError>
-{
+fn get_token(iter : &mut iter::Peekable<str::Chars>) -> Option<Token> {
     loop {
         if let None = iter.next_if(|c| c.is_whitespace()) {
             break;
         }
     }
 
-    match get_first_number(iter) {
-        Ok(option) => {
-            if let Some(value) = option {
-                return Ok(Some(Token::Number(value)));
-            }
-        }
-        Err(s) => { return Err(s); }
-    };
+    if let Some(value) = get_first_number(iter) {
+        return Some(Token::Number(value));
+    }
 
     let c = match iter.next() {
         Some(v) => v,
-        None => { return Ok(None); }
+        None => { return None; }
     };
 
     let token = match c {
@@ -83,29 +68,24 @@ fn get_token(iter : &mut iter::Peekable<str::Chars>)
         '-' => Token::Sub,
         '*' => Token::Mul,
         '/' => Token::Div,
-        other => { return Err(ParseError::InvalidCharacter(other)); }
+        other => Token::Invalid(other)
     };
 
-    Ok(Some(token))
+    Some(token)
 }
 
-fn tokenize(s : String) -> Result<Vec<Token>, ParseError> {
+fn tokenize(s : String) -> Vec<Token> {
     let mut tokens = Vec::<Token>::new();
     let mut iter = s.chars().peekable();
     loop {
-        let token = get_token(&mut iter)?;
+        let token = get_token(&mut iter);
         match token {
             Some(t) => { tokens.push(t); }
             None => { break; }
         };
     }
 
-    Ok(tokens)
-}
-
-enum EvaluateError {
-    UnexpectedToken(Token),
-    UnexpectedEnding
+    tokens
 }
 
 /*
@@ -113,8 +93,7 @@ grammar:
     factor = number
     factor = (expression)
 */
-fn evaluate_factor<T>(tokens : &mut iter::Peekable<T>)
--> Result<f64, EvaluateError>
+fn evaluate_factor<T>(tokens : &mut iter::Peekable<T>) -> Result<f64, Token>
 where T: Iterator<Item = Token>
 {
     if let Some(token) = tokens.next() {
@@ -125,18 +104,18 @@ where T: Iterator<Item = Token>
                 if let Some(token) = tokens.next() {
                     match token {
                         Token::RightBracket => Ok(value),
-                        _ => Err(EvaluateError::UnexpectedToken(token))
+                        _ => Err(token)
                     }
                 }
                 else {
-                    Err(EvaluateError::UnexpectedEnding)
+                    Err(Token::Invalid('z'))
                 }
             }
-            other => Err(EvaluateError::UnexpectedToken(other))
+            other => Err(other)
         }
     }
     else {
-        Err(EvaluateError::UnexpectedEnding)
+        Err(Token::Invalid('z'))
     }
 }
 
@@ -146,7 +125,7 @@ grammar:
     term = factor / term
     term = factor
 */
-fn evaluate_term<T>(tokens : &mut iter::Peekable<T>) -> Result<f64, EvaluateError>
+fn evaluate_term<T>(tokens : &mut iter::Peekable<T>) -> Result<f64, Token>
 where T: Iterator<Item = Token>
 {
     let value = evaluate_factor(tokens)?;
@@ -160,7 +139,7 @@ where T: Iterator<Item = Token>
         match token {
             Token::Mul => Ok(value * evaluate_term(tokens)?),
             Token::Div => Ok(value / evaluate_term(tokens)?),
-            other => Err(EvaluateError::UnexpectedToken(other))
+            other => Err(other)
         }
     }
     else {
@@ -174,8 +153,7 @@ grammar:
     expression = term - expression
     expression = term
 */
-fn evaluate_expression<T>(tokens : &mut iter::Peekable<T>)
--> Result<f64, EvaluateError>
+fn evaluate_expression<T>(tokens : &mut iter::Peekable<T>) -> Result<f64, Token>
 where T: Iterator<Item = Token>
 {
     let value = evaluate_term(tokens)?;
@@ -189,7 +167,7 @@ where T: Iterator<Item = Token>
         match token {
             Token::Add => Ok(value + evaluate_expression(tokens)?),
             Token::Sub => Ok(value - evaluate_expression(tokens)?),
-            other => Err(EvaluateError::UnexpectedToken(other))
+            other => Err(other)
         }
     }
     else {
@@ -197,14 +175,12 @@ where T: Iterator<Item = Token>
     }
 }
 
-fn evaluate(tokens : Vec<Token>) -> Result<f64, EvaluateError>
-//where T: iter::Iterator<Item = Token>
-{
+fn evaluate<T>(tokens : T) -> Result<f64, Token> where T: iter::Iterator<Item = Token> {
     let mut tokens = tokens.into_iter().peekable();
     let val = evaluate_expression(&mut tokens)?;
     match tokens.next() {
         None => Ok(val),
-        Some(t) => Err(EvaluateError::UnexpectedToken(t))
+        Some(t) => Err(t)
     }
 }
 
@@ -219,24 +195,11 @@ fn main() {
 
         io::stdin().read_line(&mut input).expect("Something wrong");
 
-        let tokens = match tokenize(input) {
-            Err(e) => {
-                match e {
-                    ParseError::InvalidCharacter(c) => {
-                        println!("Invalid character: {}", c);
-                    }
-                    ParseError::InvalidNumber(s) => {
-                        println!("Invalid number: {}", {s});
-                    }
-                }
-                continue;
-            }
-            Ok(t) => t
-        };
-        
+        let tokens = tokenize(input).into_iter();
+
         match evaluate(tokens) {
             Ok(value) => println!("{}", value),
-            Err(token) => {println!("Couldn't evaluate that")}
+            Err(token) => println!("Unexpected token: {}", token)
         }
     }
 }
